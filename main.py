@@ -1,47 +1,39 @@
-# This is a sample Python script.
-import errno
+import math
 import socket
+import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+"""
+Given an IP address and a port number, scans to see if the port is open, closed, or filtered.
+:param targetIP The IPv4 address of the target. Can also use the hostname of the target, but may cause problems with the
+        DNS lookup.
+:param p The port number of the port to be scanned
+"""
+def TCPScan(targetIP, p):
+    # try to connect to the given port #
+    try:
+        # for IPv4. To use IPv6, use "socket.AF_INET6"
+        # for TCP connections. For UDP, use "socket.SOCK_DGRAM"
+        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        soc.settimeout(0.2)
 
+        result = soc.connect_ex((targetIP, p))
 
-def TCPScan(targetIP, sP, fP=65535):
-    open = set()
-    closed = set()
-    filtered = set()
+        # if a connection was established...
+        if result == 0:
+            return "open"
+        # if the port was closed...
+        elif result == 1:
+            return "closed"
+        # if the port did not respond...
+        else:
+            return "filtered"
 
-    # start up the scanner on the selected port
-    # for IPv4. To use IPv6, use "socket.AF_INET6"
-    # for TCP connections. For UDP, use "socket.SOCK_DGRAM"
+    finally:
+        soc.close()
 
-    # Go through all 65535 ports...
-    for i in range(sP, fP, 1):
-        # ...and try to connect
-        try:
-            soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            soc.settimeout(0.2)
-
-            result = soc.connect_ex((targetIP, i))
-
-            # if a connection was established...
-            if result == 0:
-                print("open")
-                open.add(i)
-            # if the port was closed...
-            elif result == 1:
-                print("closed")
-                closed.add(i)
-            # if the port did not respond...
-            else:
-                print("filtered")
-                filtered.add(i)
-
-        finally:
-            soc.close()
-
-            print("finished scanning")
 
 def SYNScan(targetIP, sP, fP):
     print("")
@@ -57,8 +49,31 @@ def FINScan(targetIP, sP, fP):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    # collect the host's IP
-    hostIp = socket.gethostbyname(socket.gethostname())
-    print(hostIp)
+    # collect the target IP
+    targetIp = input("Enter the target IP: ")
+    print(targetIp)
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    # collect the upper and lower bound port numbers
+    lP = int(input("Enter the lower bound (inclusive, default 1): "))
+    print(lP)
+    hP = int(input("Enter the higher bound (exclusive, default 65536): "))
+    print(hP)
+
+    # calculate the number of threads needed
+    numOfPorts = hP-lP
+    numOfThreads = math.ceil(numOfPorts / 873.8) # with average 0.2s/connection, each thread should handle no more than 873.8 ports for a max scan time of 15s
+
+    # start the timer
+    startT = time.time()
+
+
+    with ThreadPoolExecutor(max_workers=numOfThreads) as exe:
+        results = {i: exe.submit(TCPScan, targetIp, i) for i in range(lP, hP)}
+
+    # let user know how long the scan took
+    endT = time.time()
+    print("finished scanning. Time elapsed: %.2f" % (endT - startT))
+
+    print("results")
+    for port in results:
+        print(results.get(port).result())
