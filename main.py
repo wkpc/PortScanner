@@ -1,7 +1,7 @@
 import math
 import socket
+import sys
 import time
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -49,24 +49,33 @@ def FINScan(targetIP, sP, fP):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    # turn the arguments into input
     # collect the target IP
-    targetIp = input("Enter the target IP: ")
+    targetIp = sys.argv[1]
     print(targetIp)
 
     # collect the upper and lower bound port numbers
-    lP = int(input("Enter the lower bound (inclusive, default 1): "))
+    lP = 1  # default lower bound to 1 (inclusive)
+    try:
+        lp = int(sys.argv[2])
+    except:
+        pass
     print(lP)
-    hP = int(input("Enter the higher bound (exclusive, default 65536): "))
+    hP = 65536  # default upper bound to 65536 (exclusive)
+    try:
+        hP = int(sys.argv[3])
+    except:
+        pass
     print(hP)
 
-    # calculate the number of threads needed
+    # calculate the number of threads needed for the scan
     numOfPorts = hP-lP
-    numOfThreads = math.ceil(numOfPorts / 873.8) # with average 0.2s/connection, each thread should handle no more than 873.8 ports for a max scan time of 15s
+    numOfThreads = math.ceil(numOfPorts / 75) # with 0.2s time out/connection, each thread should handle no more than 75 ports for a max scan time of 15s
 
     # start the timer
     startT = time.time()
 
-
+    # create the threads and start assigning port numbers to scan
     with ThreadPoolExecutor(max_workers=numOfThreads) as exe:
         results = {i: exe.submit(TCPScan, targetIp, i) for i in range(lP, hP)}
 
@@ -76,4 +85,6 @@ if __name__ == '__main__':
 
     print("results")
     for port in results:
-        print(results.get(port).result())
+        rString = results.get(port).result()
+        if rString == "open":
+            print("Port %i: [%s]"%(port, results.get(port).result()))
